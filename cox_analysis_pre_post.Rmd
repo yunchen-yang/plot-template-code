@@ -1,0 +1,334 @@
+---
+title: Survival and recurrence cox-analysis of exosomal microRNA biomarkers (reproducing
+  Yalun's report)
+author: "Yunchen Yang"
+date: "7/5/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = "hide", message=FALSE, warning=FALSE)
+options(digits = 15)
+```
+
+# 1. Read and preprocess raw data.
+Import libraries and read raw data from '.xlsx' file..
+```{r}
+library("survival")
+library("survminer")
+library("gdata")
+df <- read.xls('./r_analysis.xlsx', sheet=1, na.strings=c("NA", "#DIV/0!"))
+```
+Convert string formatted labels into numeric tags.
+```{r, results='markup'}
+df$gender_mat <- as.numeric(sub("F","0",sub("M","1",df$Gender)))
+df$location_mat <- as.numeric(sub("Right","0",sub("Left","1",df$LATERAL)))
+df$smoker_mat <- as.numeric(sub("Nonsmoker", "0", sub("Former","0", sub("Current","1",df$Smoker))))
+df$grade_mat <- as.numeric(sub("Well differentiated", "1", sub("Moderately differentiated","1", sub("Poorly differentiated","0",df$Grade))))
+df$status_mat <- as.numeric(sub("lost follow up", "0", sub("Alive","0", sub("Dead","1",df$Post.status))))
+df$reoccur_status_mat <- as.numeric(sub("No","0",sub("Yes","1",df$Reoccur.status)))
+df$reoccur_mat <- df$reoccur_status_mat
+df$reoccur_mat[df$status_mat==1|df$reoccur_status_mat==1]=1
+```
+Convert expressions of biomarkers into Z-scores.
+```{r, results='markup'}
+df$bio21.pre.z <- scale(df$Biosensor.miR.21.pre)
+df$bio486.pre.z <- scale(df$Biosensor.miR.486.pre)
+df$bio24.pre.z <- scale(df$Biosensor.miR.24.pre)
+df$bio30d.pre.z <- scale(df$Biosensor.miR.30d.pre)
+df$bio21.post6.z <- scale(df$Biosensor.miR.21.post.6.months)
+df$bio486.post6.z <- scale(df$Biosensor.miR.486.post.6.months)
+df$bio24.post6.z <- scale(df$Biosensor.miR.24.post.6.months)
+df$bio30d.post6.z <- scale(df$Biosensor.miR.30d.post.6.months)
+df$bio21.diff.z0.6 <- scale(df$Biosensor.miR.21.post.6.months - df$Biosensor.miR.21.pre)
+df$bio486.diff.z0.6 <- scale(df$Biosensor.miR.486.post.6.months - df$Biosensor.miR.486.pre)
+df$bio24.diff.z0.6 <- scale(df$Biosensor.miR.24.post.6.months - df$Biosensor.miR.24.pre)
+df$bio30d.diff.z0.6 <- scale(df$Biosensor.miR.30d.post.6.months - df$Biosensor.miR.30d.pre)
+```
+# 2. Overall Survival analysis and recurrence analysis
+## 2.1. Overall Survival analysis
+### 2.1.1. Univariate analysis
+#### 1) Gender
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ gender_mat, data = df)
+sfit <- survfit(Surv(df$survival, df$status_mat==1) ~ gender_mat, data = df)
+sprintf("The log-rank p-value is %.4f.", summary(res.cox)$sctest[3])
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+sprintf("5-Year Survival %% (95%% CI): Female %.4f (%.4f, %.4f); Male %.4f (%.4f, %.4f)", summary(sfit, times=60)$surv[1], summary(sfit, times=60)$lower[1], summary(sfit, times=60)$upper[1], summary(sfit, times=60)$surv[2], summary(sfit, times=60)$lower[2], summary(sfit, times=60)$upper[2])
+```
+#### 2) Smoking status
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ smoker_mat, data = df)
+sfit <- survfit(Surv(df$survival, df$status_mat==1) ~ smoker_mat, data = df)
+sprintf("The log-rank p-value is %.4f.", summary(res.cox)$sctest[3])
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+sprintf("5-Year Survival %% (95%% CI): Current %.4f (%.4f, %.4f); Former&Never %.4f (%.4f, %.4f)", summary(sfit, times=60)$surv[2], summary(sfit, times=60)$lower[2], summary(sfit, times=60)$upper[2], summary(sfit, times=60)$surv[1], summary(sfit, times=60)$lower[1], summary(sfit, times=60)$upper[1])
+```
+#### 3) Grade
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ grade_mat, data = df)
+sfit <- survfit(Surv(df$survival, df$status_mat==1) ~ grade_mat, data = df)
+sprintf("The log-rank p-value is %.4f.", summary(res.cox)$sctest[3])
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+sprintf("5-Year Survival %% (95%% CI): Poorly differentiated %.4f (%.4f, %.4f); Moderately&Well differentiated %.4f (%.4f, %.4f)", summary(sfit, times=60)$surv[1], summary(sfit, times=60)$lower[1], summary(sfit, times=60)$upper[1], summary(sfit, times=60)$surv[2], summary(sfit, times=60)$lower[2], summary(sfit, times=60)$upper[2])
+```
+#### 4) Stage (missing data)
+```{r, results='markup'}
+```
+#### 5) Location
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ location_mat, data = df)
+sfit <- survfit(Surv(df$survival, df$status_mat==1) ~ location_mat, data = df)
+sprintf("The log-rank p-value is %.4f.", summary(res.cox)$sctest[3])
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+sprintf("5-Year Survival %% (95%% CI): Left %.4f (%.4f, %.4f); Right %.4f (%.4f, %.4f)", summary(sfit, times=60)$surv[2], summary(sfit, times=60)$lower[2], summary(sfit, times=60)$upper[2], summary(sfit, times=60)$surv[1], summary(sfit, times=60)$lower[1], summary(sfit, times=60)$upper[1])
+```
+#### 6) Age
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ Age.at.surgery, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+#### 7) Dimension
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ Largest.dimension..cm., data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+#### 8) Biomarkers
+##### Biosensor measured miR-21 (pre-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio21.pre.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-486 (pre-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio486.pre.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-24 (pre-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio24.pre.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-30d (pre-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio30d.pre.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-21 (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio21.post6.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-486 (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio486.post6.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-24 (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio24.post6.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-30d (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio30d.post6.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-21 (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio21.diff.z0.6, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-486 (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio486.diff.z0.6, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-24 (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio24.diff.z0.6, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-30d (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat==1) ~ bio30d.diff.z0.6, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+### 2.1.2. Multivariate analysis
+#### 1) Smoking status + Location + Biosensor measured miR-486 (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat) ~ smoker_mat+location_mat+bio486.diff.z0.6, data = df)
+sprintf("Overall log-rank p-value of the multivariate model is %.4f.", summary(res.cox)$sctest[3])
+cat(sprintf("Cox Multivariate Hazard Ratio (95%% CI)\n Smoking status: %.4f (%.4f, %.4f)\n Location: %.4f (%.4f, %.4f)\n Biosensor measured miR-486 (0 vs 6 months differentiated expressions): %.4f (%.4f, %.4f)", summary(res.cox)$conf.int[1,1], summary(res.cox)$conf.int[1,3], summary(res.cox)$conf.int[1,4], summary(res.cox)$conf.int[2,1], summary(res.cox)$conf.int[2,3], summary(res.cox)$conf.int[2,4], summary(res.cox)$conf.int[3,1], summary(res.cox)$conf.int[3,3], summary(res.cox)$conf.int[3,4]))
+res.cox.no.smoke <- coxph(Surv(df$survival, df$status_mat) ~ location_mat+bio486.diff.z0.6, data = df)
+res.cox.no.location <- coxph(Surv(df$survival, df$status_mat) ~ smoker_mat+bio486.diff.z0.6, data = df)
+res.cox.no.486 <- coxph(Surv(df$survival, df$status_mat) ~ smoker_mat+location_mat, data = df)
+cat(sprintf("Cox Multivariate Likelihood Ratio p-value (n=40)\n Smoking status: %.4f\n Location: %.4f\n Biosensor measured miR-486 (0 vs 6 months differentiated expressions): %.4f", anova(res.cox.no.smoke,res.cox)$P[2], anova(res.cox.no.location,res.cox)$P[2], anova(res.cox.no.486,res.cox)$P[2]))
+```
+#### 2) Smoking status + Biosensor measured miR-486 (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat) ~ smoker_mat+bio486.diff.z0.6, data = df)
+sprintf("Overall log-rank p-value of the multivariate model is %.4f.", summary(res.cox)$sctest[3])
+cat(sprintf("Cox Multivariate Hazard Ratio (95%% CI)\n Smoking status: %.4f (%.4f, %.4f)\n Biosensor measured miR-486 (0 vs 6 months differentiated expressions): %.4f (%.4f, %.4f)", summary(res.cox)$conf.int[1,1], summary(res.cox)$conf.int[1,3], summary(res.cox)$conf.int[1,4], summary(res.cox)$conf.int[2,1], summary(res.cox)$conf.int[2,3], summary(res.cox)$conf.int[2,4]))
+res.cox.no.smoke <- coxph(Surv(df$survival, df$status_mat) ~ bio486.diff.z0.6, data = df)
+res.cox.no.486 <- coxph(Surv(df$survival, df$status_mat) ~ smoker_mat, data = df)
+cat(sprintf("Cox Multivariate Likelihood Ratio p-value (n=40)\n Smoking status: %.4f\n Biosensor measured miR-486 (0 vs 6 months differentiated expressions): %.4f", anova(res.cox.no.smoke,res.cox)$P[2], anova(res.cox.no.486,res.cox)$P[2]))
+```
+#### 3) Smoking status + Location + Biosensor measured miR-24 (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$survival, df$status_mat) ~ smoker_mat+location_mat+bio24.post6.z, data = df)
+sprintf("Overall log-rank p-value of the multivariate model is %.4f.", summary(res.cox)$sctest[3])
+cat(sprintf("Cox Multivariate Hazard Ratio (95%% CI)\n Smoking status: %.4f (%.4f, %.4f)\n Location: %.4f (%.4f, %.4f)\n Biosensor measured miR-24 (6 months' post-treatment): %.4f (%.4f, %.4f)", summary(res.cox)$conf.int[1,1], summary(res.cox)$conf.int[1,3], summary(res.cox)$conf.int[1,4], summary(res.cox)$conf.int[2,1], summary(res.cox)$conf.int[2,3], summary(res.cox)$conf.int[2,4], summary(res.cox)$conf.int[3,1], summary(res.cox)$conf.int[3,3], summary(res.cox)$conf.int[3,4]))
+res.cox.no.smoke <- coxph(Surv(df$survival, df$status_mat) ~ location_mat+bio24.post6.z, data = df)
+res.cox.no.location <- coxph(Surv(df$survival, df$status_mat) ~ smoker_mat+bio24.post6.z, data = df)
+res.cox.no.24 <- coxph(Surv(df$survival, df$status_mat) ~ smoker_mat+location_mat, data = df)
+cat(sprintf("Cox Multivariate Likelihood Ratio p-value (n=40)\n Smoking status: %.4f\n Location: %.4f\n Biosensor measured miR-24 (6 months' post-treatment): %.4f", anova(res.cox.no.smoke,res.cox)$P[2], anova(res.cox.no.location,res.cox)$P[2], anova(res.cox.no.24,res.cox)$P[2]))
+```
+## 2.2. Recurrence analysis
+### 2.2.1. Univariate analysis
+#### 1) Gender
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ gender_mat, data = df)
+sfit <- survfit(Surv(df$recurrence, df$reoccur_mat==1) ~ gender_mat, data = df)
+sprintf("The log-rank p-value is %.4f.", summary(res.cox)$sctest[3])
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+sprintf("5-Year Survival %% (95%% CI): Female %.4f (%.4f, %.4f); Male %.4f (%.4f, %.4f)", summary(sfit, times=60)$surv[1], summary(sfit, times=60)$lower[1], summary(sfit, times=60)$upper[1], summary(sfit, times=60)$surv[2], summary(sfit, times=60)$lower[2], summary(sfit, times=60)$upper[2])
+```
+#### 2) Smoking status
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ smoker_mat, data = df)
+sfit <- survfit(Surv(df$recurrence, df$reoccur_mat==1) ~ smoker_mat, data = df)
+sprintf("The log-rank p-value is %.4f.", summary(res.cox)$sctest[3])
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+sprintf("5-Year Survival %% (95%% CI): Current %.4f (%.4f, %.4f); Former&Never %.4f (%.4f, %.4f)", summary(sfit, times=60)$surv[2], summary(sfit, times=60)$lower[2], summary(sfit, times=60)$upper[2], summary(sfit, times=60)$surv[1], summary(sfit, times=60)$lower[1], summary(sfit, times=60)$upper[1])
+```
+#### 3) Grade
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ grade_mat, data = df)
+sfit <- survfit(Surv(df$recurrence, df$reoccur_mat==1) ~ grade_mat, data = df)
+sprintf("The log-rank p-value is %.4f.", summary(res.cox)$sctest[3])
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+sprintf("5-Year Survival %% (95%% CI): Poorly differentiated %.4f (%.4f, %.4f); Moderately&Well differentiated %.4f (%.4f, %.4f)", summary(sfit, times=60)$surv[1], summary(sfit, times=60)$lower[1], summary(sfit, times=60)$upper[1], summary(sfit, times=60)$surv[2], summary(sfit, times=60)$lower[2], summary(sfit, times=60)$upper[2])
+```
+#### 4) Stage (missing data)
+```{r, results='markup'}
+```
+#### 5) Location
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ location_mat, data = df)
+sfit <- survfit(Surv(df$recurrence, df$reoccur_mat==1) ~ location_mat, data = df)
+sprintf("The log-rank p-value is %.4f.", summary(res.cox)$sctest[3])
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+sprintf("5-Year Survival %% (95%% CI): Left %.4f (%.4f, %.4f); Right %.4f (%.4f, %.4f)", summary(sfit, times=60)$surv[2], summary(sfit, times=60)$lower[2], summary(sfit, times=60)$upper[2], summary(sfit, times=60)$surv[1], summary(sfit, times=60)$lower[1], summary(sfit, times=60)$upper[1])
+```
+#### 6) Age
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ Age.at.surgery, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+#### 7) Dimension
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ Largest.dimension..cm., data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+#### 8) Biomarkers
+##### Biosensor measured miR-21 (pre-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio21.pre.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-486 (pre-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio486.pre.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-24 (pre-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio24.pre.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-30d (pre-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio30d.pre.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-21 (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio21.post6.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-486 (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio486.post6.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-24 (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio24.post6.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-30d (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio30d.post6.z, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-21 (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio21.diff.z0.6, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-486 (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio486.diff.z0.6, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-24 (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio24.diff.z0.6, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+##### Biosensor measured miR-30d (0 vs 6 months differentiated expressions).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat==1) ~ bio30d.diff.z0.6, data = df)
+sprintf("p-value: %.4f", summary(res.cox)$coefficients[5]) 
+sprintf("Cox Univariate Hazard Ratio (95%% CI): %.4f (%.4f, %.4f).", summary(res.cox)$conf.int[1], summary(res.cox)$conf.int[3], summary(res.cox)$conf.int[4])
+```
+### 2.2.2. Multivariate analysis
+#### 1) Grade + Biosensor measured miR-24 (6 months' post-treatment).
+```{r, results='markup'}
+res.cox <- coxph(Surv(df$recurrence, df$reoccur_mat) ~ grade_mat+bio24.post6.z, data = df)
+sprintf("Overall log-rank p-value of the multivariate model is %.4f.", summary(res.cox)$sctest[3])
+cat(sprintf("Cox Multivariate Hazard Ratio (95%% CI)\n Grade: %.4f (%.4f, %.4f)\n Biosensor measured miR-24 (6 months' post-treatment): %.4f (%.4f, %.4f)", summary(res.cox)$conf.int[1,1], summary(res.cox)$conf.int[1,3], summary(res.cox)$conf.int[1,4], summary(res.cox)$conf.int[2,1], summary(res.cox)$conf.int[2,3], summary(res.cox)$conf.int[2,4]))
+res.cox.no.grade <- coxph(Surv(df$recurrence, df$reoccur_mat) ~ bio24.post6.z, data = df)
+res.cox.no.24 <- coxph(Surv(df$recurrence, df$reoccur_mat) ~ grade_mat, data = df)
+cat(sprintf("Cox Multivariate Likelihood Ratio p-value (n=40)\n Grade: %.4f\n Biosensor measured miR-24 (6 months' post-treatment): %.4f", anova(res.cox.no.grade,res.cox)$P[2], anova(res.cox.no.24,res.cox)$P[2]))
+```
